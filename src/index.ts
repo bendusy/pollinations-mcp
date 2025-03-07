@@ -10,14 +10,97 @@ import {
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PollinationsTextAudioAPI } from './text-audio-api.js';
-import { ErrorHandler, PollinationsError, PollinationsErrorType } from './error-handler.js';
+
+// 简化的错误类型枚举
+enum PollinationsErrorType {
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  API_ERROR = 'API_ERROR',
+  FILE_SYSTEM_ERROR = 'FILE_SYSTEM_ERROR'
+}
+
+// 简化的错误类
+class PollinationsError extends Error {
+  type: PollinationsErrorType;
+  statusCode?: number;
+  
+  constructor(message: string, type: PollinationsErrorType, statusCode?: number) {
+    super(message);
+    this.name = 'PollinationsError';
+    this.type = type;
+    this.statusCode = statusCode;
+  }
+  
+  toUserFriendlyMessage(): string {
+    return `错误: ${this.message}${this.statusCode ? ` (状态码: ${this.statusCode})` : ''}`;
+  }
+}
+
+// Pollinations文本API实现
+class PollinationsTextAPI {
+  private baseTextUrl = 'https://text.pollinations.ai';
+
+  /**
+   * 生成文本 (GET方法)
+   * @param prompt 提示词
+   * @param options 选项
+   * @returns 生成的文本
+   */
+  async generateTextGet(prompt: string, options: {
+    model?: string;
+    seed?: number;
+    json?: boolean;
+    system?: string;
+    private?: boolean;
+  } = {}) {
+    const { model = 'openai', seed, json = false, system, private: isPrivate = false } = options;
+    
+    let url = `${this.baseTextUrl}/${encodeURIComponent(prompt)}?model=${model}`;
+    
+    if (seed !== undefined) {
+      url += `&seed=${seed}`;
+    }
+    
+    if (json) {
+      url += `&json=true`;
+    }
+    
+    if (system) {
+      url += `&system=${encodeURIComponent(system)}`;
+    }
+    
+    if (isPrivate) {
+      url += `&private=true`;
+    }
+    
+    try {
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error) {
+      throw new Error(`文本生成失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * 获取可用模型列表
+   * @returns 模型列表
+   */
+  async getAvailableModels() {
+    try {
+      const url = `${this.baseTextUrl}/models`;
+      
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error) {
+      throw new Error(`获取模型列表失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
 
 // Pollinations.ai 服务器实现
 class PollinationsServer {
   private server: Server;
   private baseUrl = 'https://image.pollinations.ai';
-  private textAudioAPI: PollinationsTextAudioAPI;
+  private textAPI: PollinationsTextAPI;
 
   constructor() {
     this.server = new Server(
@@ -32,8 +115,8 @@ class PollinationsServer {
       }
     );
 
-    // 初始化文本和音频API
-    this.textAudioAPI = new PollinationsTextAudioAPI();
+    // 初始化文本API
+    this.textAPI = new PollinationsTextAPI();
     
     // 设置工具处理器
     this.setupToolHandlers();
@@ -44,6 +127,24 @@ class PollinationsServer {
       await this.server.close();
       process.exit(0);
     });
+  }
+
+  // 错误处理方法
+  private handleValidationError(message: string): PollinationsError {
+    return new PollinationsError(message, PollinationsErrorType.VALIDATION_ERROR, 400);
+  }
+  
+  private handleApiError(error: any): PollinationsError {
+    if (axios.isAxiosError(error)) {
+      const statusCode = error.response?.status || 0;
+      const message = error.response?.data?.message || error.message;
+      return new PollinationsError(`API错误: ${message}`, PollinationsErrorType.API_ERROR, statusCode);
+    }
+    return new PollinationsError(`未知错误: ${error.message || error}`, PollinationsErrorType.API_ERROR, 0);
+  }
+  
+  private handleFileSystemError(error: any, operation: string): PollinationsError {
+    return new PollinationsError(`文件操作失败 (${operation}): ${error.message || error}`, PollinationsErrorType.FILE_SYSTEM_ERROR);
   }
 
   // 设置MCP工具处理器
@@ -185,7 +286,7 @@ class PollinationsServer {
   private async handleGenerateImage(args: any) {
     try {
       if (!this.isValidGenerateImageArgs(args)) {
-        throw ErrorHandler.handleValidationError('无效的图像生成参数');
+        throw this.handleValidationError('无效的图像生成参数');
       }
 
       const { 
@@ -248,7 +349,7 @@ class PollinationsServer {
         await axios.head(imageUrl);
       } catch (error) {
         // 处理API错误
-        const pollinationsError = ErrorHandler.handleApiError(error);
+        const pollinationsError = this.handleApiError(error);
         
         // 特殊处理安全过滤错误
         if (pollinationsError.statusCode === 400 && safe) {
@@ -298,7 +399,7 @@ class PollinationsServer {
       if (error instanceof PollinationsError) {
         pollinationsError = error;
       } else {
-        pollinationsError = ErrorHandler.handleApiError(error);
+        pollinationsError = this.handleApiError(error);
       }
       
       return {
@@ -335,7 +436,7 @@ class PollinationsServer {
   private async handleDownloadImage(args: any) {
     try {
       if (!this.isValidDownloadImageArgs(args)) {
-        throw ErrorHandler.handleValidationError('无效的图像下载参数');
+        throw this.handleValidationError('无效的图像下载参数');
       }
 
       // 获取参数
@@ -353,7 +454,7 @@ class PollinationsServer {
           fs.mkdirSync(dirname, { recursive: true });
         }
       } catch (fsError) {
-        throw ErrorHandler.handleFileSystemError(fsError, '创建目录');
+        throw this.handleFileSystemError(fsError, '创建目录');
       }
 
       // 下载图像
@@ -362,7 +463,7 @@ class PollinationsServer {
       try {
         response = await axios.get(url, { responseType: 'arraybuffer' });
       } catch (downloadError) {
-        throw ErrorHandler.handleApiError(downloadError);
+        throw this.handleApiError(downloadError);
       }
       
       // 写入文件
@@ -370,7 +471,7 @@ class PollinationsServer {
         console.error(`写入文件: ${output_path}`);
         fs.writeFileSync(output_path, Buffer.from(response.data, 'binary'));
       } catch (writeError) {
-        throw ErrorHandler.handleFileSystemError(writeError, '写入文件');
+        throw this.handleFileSystemError(writeError, '写入文件');
       }
       
       // 验证文件是否写入成功
@@ -402,7 +503,7 @@ class PollinationsServer {
         if (verifyError instanceof PollinationsError) {
           throw verifyError;
         } else {
-          throw ErrorHandler.handleFileSystemError(verifyError, '验证文件');
+          throw this.handleFileSystemError(verifyError, '验证文件');
         }
       }
     } catch (error) {
@@ -412,7 +513,7 @@ class PollinationsServer {
       if (error instanceof PollinationsError) {
         pollinationsError = error;
       } else {
-        pollinationsError = ErrorHandler.handleApiError(error);
+        pollinationsError = this.handleApiError(error);
       }
       
       return {
@@ -469,14 +570,14 @@ class PollinationsServer {
 
   // 处理生成文本请求
   private async handleGenerateText(args: any) {
-    if (!this.isValidGenerateTextArgs(args)) {
-      throw new McpError(ErrorCode.InvalidParams, '无效的文本生成参数');
-    }
-
-    const { prompt, model = 'openai', seed, system, json = false, private: isPrivate = false } = args;
-
     try {
-      const result = await this.textAudioAPI.generateTextGet(prompt, {
+      if (!this.isValidGenerateTextArgs(args)) {
+        throw this.handleValidationError('无效的文本生成参数');
+      }
+
+      const { prompt, model = 'openai', seed, system, json = false, private: isPrivate = false } = args;
+
+      const result = await this.textAPI.generateTextGet(prompt, {
         model,
         seed,
         json,
@@ -493,11 +594,20 @@ class PollinationsServer {
         ],
       };
     } catch (error) {
+      // 处理所有错误
+      let pollinationsError: PollinationsError;
+      
+      if (error instanceof PollinationsError) {
+        pollinationsError = error;
+      } else {
+        pollinationsError = this.handleApiError(error);
+      }
+      
       return {
         content: [
           {
             type: 'text',
-            text: `生成文本时出错: ${error instanceof Error ? error.message : String(error)}`,
+            text: pollinationsError.toUserFriendlyMessage(),
           },
         ],
         isError: true,
