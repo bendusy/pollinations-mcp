@@ -1,5 +1,9 @@
 # Pollinations MCP 服务器
 
+<div align="center">
+  <img src="./icon.png" alt="Pollinations MCP 服务器图标" width="200">
+</div>
+
 这是一个基于[Model Context Protocol (MCP)](https://github.com/microsoft/modelcontextprotocol)的服务器实现，用于连接[Pollinations.ai](https://pollinations.ai)服务的API接口。该服务器允许AI模型通过MCP协议调用Pollinations.ai的图像生成功能。
 
 ## 功能特点

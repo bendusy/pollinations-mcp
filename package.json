@@ -8,10 +8,16 @@
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "mcp",
+    "pollinations",
+    "ai",
+    "image",
+    "generation"
+  ],
+  "author": "bendusy",
   "license": "ISC",
-  "description": "",
+  "description": "使用MCP协议连接Pollinations.ai的图像生成服务",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",
     "axios": "^1.8.1"
@@ -19,5 +25,14 @@
   "devDependencies": {
     "@types/node": "^22.13.9",
     "typescript": "^5.8.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bendusy/pollinations-mcp.git"
+  },
+  "homepage": "https://github.com/bendusy/pollinations-mcp",
+  "bugs": {
+    "url": "https://github.com/bendusy/pollinations-mcp/issues"
+  },
+  "icon": "icon.png"
 }
