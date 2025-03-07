@@ -96,7 +96,7 @@ npm start
 5. 现在您可以在Cline中使用Pollinations图像生成功能了，例如：
 
 ```
-使用Pollinations生成一张描绘日落的图像
+使用Pollinations生成图像：beautiful sunset over ocean with palm trees
 ```
 
 ### 与AI模型集成
@@ -116,6 +116,12 @@ npm start
 - `seed` (可选): 随机种子值（用于生成一致的图像）
 - `model` (可选): 要使用的模型，默认为'flux'
 - `nologo` (可选): 设置为true可去除水印，默认为true
+
+**提示词最佳实践：**
+- 尽量使用英文编写提示词，Pollinations.ai对英文的理解更好
+- 保持提示词简短精确，避免过长或模糊的描述
+- 使用具体的形容词和名词，而非抽象概念
+- 例如："beautiful sunset over ocean with palm trees"比"一张日落的图片"效果更好
 
 #### download_image
 
