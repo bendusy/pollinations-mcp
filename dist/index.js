@@ -60,6 +60,11 @@ class PollinationsServer {
                                 description: '要使用的模型（如flux、variation等）',
                                 default: 'flux',
                             },
+                            nologo: {
+                                type: 'boolean',
+                                description: '设置为true可去除水印',
+                                default: true,
+                            },
                         },
                         required: ['prompt'],
                     },
@@ -102,7 +107,7 @@ class PollinationsServer {
         if (!this.isValidGenerateImageArgs(args)) {
             throw new McpError(ErrorCode.InvalidParams, '无效的图像生成参数');
         }
-        const { prompt, width = 1024, height = 1024, seed, model = 'flux' } = args;
+        const { prompt, width = 1024, height = 1024, seed, model = 'flux', nologo = true } = args;
         // 构建Pollinations URL
         let imageUrl = `${this.baseUrl}/p/${encodeURIComponent(prompt)}?width=${width}&height=${height}`;
         if (seed !== undefined) {
@@ -110,6 +115,9 @@ class PollinationsServer {
         }
         if (model) {
             imageUrl += `&model=${model}`;
+        }
+        if (nologo) {
+            imageUrl += `&nologo=true`;
         }
         try {
             return {
@@ -122,7 +130,8 @@ class PollinationsServer {
                             width,
                             height,
                             seed,
-                            model
+                            model,
+                            nologo
                         }, null, 2),
                     },
                 ],
@@ -148,10 +157,9 @@ class PollinationsServer {
         // 获取参数
         let { url, output_path = 'image.jpg' } = args;
         try {
-            // 使用固定路径保存图像
-            // 使用绝对路径直接保存到项目根目录
-            output_path = path.join('C:\\Users\\BEN\\OneDrive\\Cline\\MCP\\pollinations-mcp', output_path);
-            console.error(`图像将保存到固定位置: ${output_path}`);
+            // 使用相对路径保存图像到当前工作目录
+            output_path = path.resolve(process.cwd(), output_path);
+            console.error(`图像将保存到: ${output_path}`);
             // 确保输出目录存在
             const dirname = path.dirname(output_path);
             if (!fs.existsSync(dirname)) {
@@ -215,7 +223,8 @@ class PollinationsServer {
             (args.width === undefined || typeof args.width === 'number') &&
             (args.height === undefined || typeof args.height === 'number') &&
             (args.seed === undefined || typeof args.seed === 'number') &&
-            (args.model === undefined || typeof args.model === 'string'));
+            (args.model === undefined || typeof args.model === 'string') &&
+            (args.nologo === undefined || typeof args.nologo === 'boolean'));
     }
     // 验证下载图像参数
     isValidDownloadImageArgs(args) {

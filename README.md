@@ -42,6 +42,33 @@ npm start
 
 服务器将通过标准输入/输出(stdio)启动，等待MCP客户端连接。
 
+### 在Cursor中使用
+
+[Cursor](https://cursor.com)是一个支持MCP协议的代码编辑器，可以直接使用本服务器提供的图像生成功能。设置步骤如下：
+
+#### 方法一：全局配置
+
+1. 在Cursor中，依次打开`Cursor设置` > `功能` > `MCP`
+2. 点击`+ 添加新的MCP服务器`按钮
+3. 设置以下参数：
+   - **类型**：选择`stdio`
+   - **名称**：输入`Pollinations图像生成`
+   - **命令**：输入您的完整命令路径，例如`node /path/to/pollinations-mcp/dist/index.js`
+
+#### 方法二：项目特定配置
+
+1. 在项目根目录创建`.cursor`文件夹（如果不存在）
+2. 将本项目中的`cursor/mcp.json`文件复制到`.cursor/mcp.json`
+3. 根据您的环境修改文件路径
+
+配置完成后，您可以在Cursor的Composer界面中的Agent模式下使用这些工具。简单地告诉Agent使用Pollinations生成图像，例如：
+
+```
+使用Pollinations生成一张描绘日落的图像
+```
+
+Agent将自动调用相应的工具，并请求您的确认后执行。
+
 ### 与AI模型集成
 
 本服务器设计用于与支持MCP协议的AI模型集成，使其能够生成图像。
@@ -88,4 +115,4 @@ npm start
 ## 相关链接
 
 - [Pollinations.ai](https://pollinations.ai)
-- [Model Context Protocol](https://github.com/microsoft/modelcontextprotocol) 
+- [Model Context Protocol](https://github.com/microsoft/modelcontextprotocol)
