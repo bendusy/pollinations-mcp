@@ -79,6 +79,21 @@ class PollinationsServer {
                 description: '设置为true可去除水印',
                 default: true,
               },
+              enhance: {
+                type: 'boolean',
+                description: '提高图像质量（应用增强滤镜）',
+                default: false,
+              },
+              safe: {
+                type: 'boolean',
+                description: '启用安全过滤（过滤不适内容）',
+                default: false,
+              },
+              private: {
+                type: 'boolean',
+                description: '设置为true可使图像私有（不在公共feed中显示）',
+                default: false,
+              }
             },
             required: ['prompt'],
           },
@@ -127,7 +142,17 @@ class PollinationsServer {
       throw new McpError(ErrorCode.InvalidParams, '无效的图像生成参数');
     }
 
-    const { prompt, width = 1024, height = 1024, seed, model = 'flux', nologo = true } = args;
+    const { 
+      prompt, 
+      width = 1024, 
+      height = 1024, 
+      seed, 
+      model = 'flux', 
+      nologo = true,
+      enhance = false,
+      safe = false,
+      private: isPrivate = false
+    } = args;
     
     // 检查提示词是否为英文
     const isMainlyEnglish = this.isMainlyEnglish(prompt);
@@ -143,8 +168,9 @@ class PollinationsServer {
       promptFeedback += '提示：提示词过长可能影响生成效果，建议保持简短精确（建议不超过200字符）。\n';
     }
     
-    // 构建Pollinations URL
-    let imageUrl = `${this.baseUrl}/p/${encodeURIComponent(prompt)}?width=${width}&height=${height}`;
+    // 构建Pollinations URL（使用官方路径格式）
+    // 从 '/p/' 改为 '/prompt/'，与官方API一致
+    let imageUrl = `${this.baseUrl}/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}`;
     
     if (seed !== undefined) {
       imageUrl += `&seed=${seed}`;
@@ -156,6 +182,19 @@ class PollinationsServer {
 
     if (nologo) {
       imageUrl += `&nologo=true`;
+    }
+
+    // 添加新参数支持
+    if (enhance) {
+      imageUrl += `&enhance=true`;
+    }
+
+    if (safe) {
+      imageUrl += `&safe=true`;
+    }
+
+    if (isPrivate) {
+      imageUrl += `&private=true`;
     }
 
     try {
@@ -170,7 +209,10 @@ class PollinationsServer {
               height,
               seed,
               model,
-              nologo
+              nologo,
+              enhance,
+              safe,
+              private: isPrivate
             }, null, 2),
           },
         ],
@@ -296,6 +338,9 @@ class PollinationsServer {
     seed?: number;
     model?: string;
     nologo?: boolean;
+    enhance?: boolean;
+    safe?: boolean;
+    private?: boolean;
   } {
     return (
       typeof args === 'object' &&
@@ -305,7 +350,10 @@ class PollinationsServer {
       (args.height === undefined || typeof args.height === 'number') &&
       (args.seed === undefined || typeof args.seed === 'number') &&
       (args.model === undefined || typeof args.model === 'string') &&
-      (args.nologo === undefined || typeof args.nologo === 'boolean')
+      (args.nologo === undefined || typeof args.nologo === 'boolean') &&
+      (args.enhance === undefined || typeof args.enhance === 'boolean') &&
+      (args.safe === undefined || typeof args.safe === 'boolean') &&
+      (args.private === undefined || typeof args.private === 'boolean')
     );
   }
 

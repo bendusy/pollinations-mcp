@@ -120,6 +120,9 @@ npm start
 - `seed` (可选): 随机种子值（用于生成一致的图像）
 - `model` (可选): 要使用的模型，默认为'flux'
 - `nologo` (可选): 设置为true可去除水印，默认为true
+- `enhance` (可选): 提高图像质量（应用增强滤镜），默认为false
+- `safe` (可选): 启用安全过滤（过滤不适内容），默认为false
+- `private` (可选): 设置为true可使图像私有（不在公共feed中显示），默认为false
 
 **提示词最佳实践：**
 - 尽量使用英文编写提示词，Pollinations.ai对英文的理解更好
@@ -134,6 +137,31 @@ npm start
 参数：
 - `url` (必需): 要下载的图像URL
 - `output_path` (可选): 保存图像的路径（包括文件名），默认为'image.jpg'
+
+## API参考
+
+本项目使用Pollinations.ai的官方API。完整的API文档请参考：[Pollinations API文档](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md)
+
+### 图像生成API
+
+基本格式：`https://image.pollinations.ai/prompt/{prompt}?{参数}`
+
+示例：
+```
+https://image.pollinations.ai/prompt/beautiful%20sunset?width=1024&height=1024&nologo=true
+```
+
+### 可用的图像模型
+
+- `flux` (默认): 主流文生图模型，功能全面
+- `variation`: 图像变体生成
+- `dreamshaper`: 梦幻风格
+- `anything`: 动漫风格图像
+- `pixart`: 高质量插图风格
+
+### 其他API
+
+除了图像生成外，Pollinations.ai还提供文本生成和音频生成API，但当前MCP服务器尚未实现这些功能。
 
 ## 开发
 
