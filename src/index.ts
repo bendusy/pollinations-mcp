@@ -129,6 +129,20 @@ class PollinationsServer {
 
     const { prompt, width = 1024, height = 1024, seed, model = 'flux', nologo = true } = args;
     
+    // 检查提示词是否为英文
+    const isMainlyEnglish = this.isMainlyEnglish(prompt);
+    const isConcise = prompt.length <= 200;
+    
+    let promptFeedback = '';
+    
+    if (!isMainlyEnglish) {
+      promptFeedback += '提示：Pollinations.ai对英文提示词的理解更好，建议使用英文编写提示词。\n';
+    }
+    
+    if (!isConcise) {
+      promptFeedback += '提示：提示词过长可能影响生成效果，建议保持简短精确（建议不超过200字符）。\n';
+    }
+    
     // 构建Pollinations URL
     let imageUrl = `${this.baseUrl}/p/${encodeURIComponent(prompt)}?width=${width}&height=${height}`;
     
@@ -145,7 +159,7 @@ class PollinationsServer {
     }
 
     try {
-      return {
+      const response = {
         content: [
           {
             type: 'text',
@@ -161,6 +175,16 @@ class PollinationsServer {
           },
         ],
       };
+      
+      // 如果有提示反馈，添加到响应中
+      if (promptFeedback) {
+        response.content.unshift({
+          type: 'text',
+          text: promptFeedback
+        });
+      }
+      
+      return response;
     } catch (error) {
       return {
         content: [
@@ -172,6 +196,24 @@ class PollinationsServer {
         isError: true,
       };
     }
+  }
+
+  // 检查文本是否主要为英文
+  private isMainlyEnglish(text: string): boolean {
+    // 英文字符（包括空格和标点）的正则表达式
+    const englishRegex = /^[A-Za-z0-9\s.,;:'"!?()-]+$/;
+    
+    // 如果完全匹配英文字符，返回true
+    if (englishRegex.test(text)) {
+      return true;
+    }
+    
+    // 否则计算非英文字符的比例
+    const nonEnglishChars = text.split('').filter(char => !char.match(/[A-Za-z0-9\s.,;:'"!?()-]/)).length;
+    const totalChars = text.length;
+    
+    // 如果非英文字符少于20%，仍然视为主要是英文
+    return (nonEnglishChars / totalChars) < 0.2;
   }
 
   // 处理下载图像请求
