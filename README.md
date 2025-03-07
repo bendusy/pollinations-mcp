@@ -4,14 +4,15 @@
   <img src="./icon.png" alt="Pollinations MCP 服务器图标" width="200">
 </div>
 
-这是一个基于[Model Context Protocol (MCP)](https://github.com/microsoft/modelcontextprotocol)的服务器实现，用于连接[Pollinations.ai](https://pollinations.ai)服务的API接口。该服务器允许AI模型通过MCP协议调用Pollinations.ai的图像生成功能。
+这是一个基于[Model Context Protocol (MCP)](https://github.com/microsoft/modelcontextprotocol)的服务器实现，用于连接[Pollinations.ai](https://pollinations.ai)服务的API接口。该服务器允许AI模型通过MCP协议调用Pollinations.ai的图像和文本生成功能。
 
 ## 功能特点
 
 - 支持通过MCP协议与Pollinations.ai服务交互
-- 提供两个主要工具：
+- 提供三个主要工具：
   - `generate_image`: 使用Pollinations.ai生成图像并返回URL（默认无水印）
   - `download_image`: 下载生成的图像到本地文件
+  - `generate_text`: 使用Pollinations.ai生成文本
 - 基于TypeScript实现，支持类型安全
 - 使用stdio传输机制，便于与AI模型集成
 
@@ -72,7 +73,8 @@ npm start
     "disabled": false,
     "autoApprove": [
       "download_image",
-      "generate_image"
+      "generate_image",
+      "generate_text"
     ]
   }
 }
@@ -90,7 +92,8 @@ npm start
     "disabled": false,
     "autoApprove": [
       "download_image",
-      "generate_image"
+      "generate_image",
+      "generate_text"
     ]
   }
 }
@@ -138,6 +141,18 @@ npm start
 - `url` (必需): 要下载的图像URL
 - `output_path` (可选): 保存图像的路径（包括文件名），默认为'image.jpg'
 
+#### generate_text
+
+使用Pollinations.ai生成文本。
+
+参数：
+- `prompt` (必需): 文本提示词
+- `model` (可选): 要使用的模型（如openai、mistral等），默认为'openai'
+- `seed` (可选): 随机种子值（用于生成一致的结果）
+- `system` (可选): 系统提示词（设置AI行为）
+- `json` (可选): 是否返回JSON格式的响应，默认为false
+- `private` (可选): 设置为true可使响应私有，默认为false
+
 ## API参考
 
 本项目使用Pollinations.ai的官方API。完整的API文档请参考：[Pollinations API文档](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md)
@@ -159,9 +174,20 @@ https://image.pollinations.ai/prompt/beautiful%20sunset?width=1024&height=1024&n
 - `anything`: 动漫风格图像
 - `pixart`: 高质量插图风格
 
-### 其他API
+### 文本生成API
 
-除了图像生成外，Pollinations.ai还提供文本生成和音频生成API，但当前MCP服务器尚未实现这些功能。
+基本格式：`https://text.pollinations.ai/{prompt}?{参数}`
+
+示例：
+```
+https://text.pollinations.ai/Tell%20me%20about%20artificial%20intelligence?model=openai
+```
+
+### 可用的文本模型
+
+- `openai` (默认): OpenAI模型
+- `mistral`: Mistral模型
+- `gemini`: Google Gemini模型
 
 ## 开发
 

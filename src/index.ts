@@ -10,11 +10,14 @@ import {
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PollinationsTextAudioAPI } from './text-audio-api.js';
+import { ErrorHandler, PollinationsError, PollinationsErrorType } from './error-handler.js';
 
 // Pollinations.ai 服务器实现
 class PollinationsServer {
   private server: Server;
-  private baseUrl = 'https://pollinations.ai';
+  private baseUrl = 'https://image.pollinations.ai';
+  private textAudioAPI: PollinationsTextAudioAPI;
 
   constructor() {
     this.server = new Server(
@@ -29,6 +32,9 @@ class PollinationsServer {
       }
     );
 
+    // 初始化文本和音频API
+    this.textAudioAPI = new PollinationsTextAudioAPI();
+    
     // 设置工具处理器
     this.setupToolHandlers();
     
@@ -47,7 +53,7 @@ class PollinationsServer {
       tools: [
         {
           name: 'generate_image',
-          description: '使用Pollinations.ai生成图像并返回URL',
+          description: '使用Pollinations.ai生成图像',
           inputSchema: {
             type: 'object',
             properties: {
@@ -91,9 +97,9 @@ class PollinationsServer {
               },
               private: {
                 type: 'boolean',
-                description: '设置为true可使图像私有（不在公共feed中显示）',
+                description: '设置为true可使图像私有',
                 default: false,
-              }
+              },
             },
             required: ['prompt'],
           },
@@ -117,9 +123,46 @@ class PollinationsServer {
             required: ['url'],
           },
         },
+        {
+          name: 'generate_text',
+          description: '使用Pollinations.ai生成文本',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              prompt: {
+                type: 'string',
+                description: '文本提示词',
+              },
+              model: {
+                type: 'string',
+                description: '要使用的模型（如openai、mistral等）',
+                default: 'openai',
+              },
+              seed: {
+                type: 'number',
+                description: '随机种子值（用于生成一致的结果）',
+              },
+              system: {
+                type: 'string',
+                description: '系统提示词（设置AI行为）',
+              },
+              json: {
+                type: 'boolean',
+                description: '是否返回JSON格式的响应',
+                default: false,
+              },
+              private: {
+                type: 'boolean',
+                description: '设置为true可使响应私有',
+                default: false,
+              },
+            },
+            required: ['prompt'],
+          },
+        },
       ],
     }));
-
+    
     // 处理工具调用
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       switch (request.params.name) {
@@ -127,6 +170,8 @@ class PollinationsServer {
           return this.handleGenerateImage(request.params.arguments);
         case 'download_image':
           return this.handleDownloadImage(request.params.arguments);
+        case 'generate_text':
+          return this.handleGenerateText(request.params.arguments);
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -138,66 +183,85 @@ class PollinationsServer {
 
   // 处理生成图像请求
   private async handleGenerateImage(args: any) {
-    if (!this.isValidGenerateImageArgs(args)) {
-      throw new McpError(ErrorCode.InvalidParams, '无效的图像生成参数');
-    }
-
-    const { 
-      prompt, 
-      width = 1024, 
-      height = 1024, 
-      seed, 
-      model = 'flux', 
-      nologo = true,
-      enhance = false,
-      safe = false,
-      private: isPrivate = false
-    } = args;
-    
-    // 检查提示词是否为英文
-    const isMainlyEnglish = this.isMainlyEnglish(prompt);
-    const isConcise = prompt.length <= 200;
-    
-    let promptFeedback = '';
-    
-    if (!isMainlyEnglish) {
-      promptFeedback += '提示：Pollinations.ai对英文提示词的理解更好，建议使用英文编写提示词。\n';
-    }
-    
-    if (!isConcise) {
-      promptFeedback += '提示：提示词过长可能影响生成效果，建议保持简短精确（建议不超过200字符）。\n';
-    }
-    
-    // 构建Pollinations URL（使用官方路径格式）
-    // 从 '/p/' 改为 '/prompt/'，与官方API一致
-    let imageUrl = `${this.baseUrl}/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}`;
-    
-    if (seed !== undefined) {
-      imageUrl += `&seed=${seed}`;
-    }
-    
-    if (model) {
-      imageUrl += `&model=${model}`;
-    }
-
-    if (nologo) {
-      imageUrl += `&nologo=true`;
-    }
-
-    // 添加新参数支持
-    if (enhance) {
-      imageUrl += `&enhance=true`;
-    }
-
-    if (safe) {
-      imageUrl += `&safe=true`;
-    }
-
-    if (isPrivate) {
-      imageUrl += `&private=true`;
-    }
-
     try {
+      if (!this.isValidGenerateImageArgs(args)) {
+        throw ErrorHandler.handleValidationError('无效的图像生成参数');
+      }
+
+      const { 
+        prompt, 
+        width = 1024, 
+        height = 1024, 
+        seed, 
+        model = 'flux', 
+        nologo = true,
+        enhance = false,
+        safe = false,
+        private: isPrivate = false
+      } = args;
+      
+      // 检查提示词是否为英文
+      const isMainlyEnglish = this.isMainlyEnglish(prompt);
+      const isConcise = prompt.length <= 200;
+      
+      let promptFeedback = '';
+      
+      if (!isMainlyEnglish) {
+        promptFeedback += '提示：Pollinations.ai对英文提示词的理解更好，建议使用英文编写提示词。\n';
+      }
+      
+      if (!isConcise) {
+        promptFeedback += '提示：提示词过长可能影响生成效果，建议保持简短精确（建议不超过200字符）。\n';
+      }
+      
+      // 构建Pollinations URL（使用官方路径格式）
+      let imageUrl = `${this.baseUrl}/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}`;
+      
+      if (seed !== undefined) {
+        imageUrl += `&seed=${seed}`;
+      }
+      
+      if (model) {
+        imageUrl += `&model=${model}`;
+      }
+
+      if (nologo) {
+        imageUrl += `&nologo=true`;
+      }
+
+      // 添加新参数支持
+      if (enhance) {
+        imageUrl += `&enhance=true`;
+      }
+
+      if (safe) {
+        imageUrl += `&safe=true`;
+      }
+
+      if (isPrivate) {
+        imageUrl += `&private=true`;
+      }
+
+      // 验证URL是否有效
+      try {
+        // 发送HEAD请求检查URL是否可访问（不下载完整图像）
+        await axios.head(imageUrl);
+      } catch (error) {
+        // 处理API错误
+        const pollinationsError = ErrorHandler.handleApiError(error);
+        
+        // 特殊处理安全过滤错误
+        if (pollinationsError.statusCode === 400 && safe) {
+          throw new PollinationsError(
+            '内容被安全过滤拦截，请修改提示词后重试',
+            PollinationsErrorType.VALIDATION_ERROR,
+            400
+          );
+        }
+        
+        throw pollinationsError;
+      }
+
       const response = {
         content: [
           {
@@ -228,11 +292,20 @@ class PollinationsServer {
       
       return response;
     } catch (error) {
+      // 处理所有错误
+      let pollinationsError: PollinationsError;
+      
+      if (error instanceof PollinationsError) {
+        pollinationsError = error;
+      } else {
+        pollinationsError = ErrorHandler.handleApiError(error);
+      }
+      
       return {
         content: [
           {
             type: 'text',
-            text: `生成图像URL时出错: ${error instanceof Error ? error.message : String(error)}`,
+            text: pollinationsError.toUserFriendlyMessage(),
           },
         ],
         isError: true,
@@ -260,69 +333,93 @@ class PollinationsServer {
 
   // 处理下载图像请求
   private async handleDownloadImage(args: any) {
-    if (!this.isValidDownloadImageArgs(args)) {
-      throw new McpError(ErrorCode.InvalidParams, '无效的图像下载参数');
-    }
-
-    // 获取参数
-    let { url, output_path = 'image.jpg' } = args;
-    
     try {
+      if (!this.isValidDownloadImageArgs(args)) {
+        throw ErrorHandler.handleValidationError('无效的图像下载参数');
+      }
+
+      // 获取参数
+      let { url, output_path = 'image.jpg' } = args;
+      
       // 使用相对路径保存图像到当前工作目录
       output_path = path.resolve(process.cwd(), output_path);
       console.error(`图像将保存到: ${output_path}`);
 
-      // 确保输出目录存在
-      const dirname = path.dirname(output_path);
-      if (!fs.existsSync(dirname)) {
-        console.error(`创建目录: ${dirname}`);
-        fs.mkdirSync(dirname, { recursive: true });
+      try {
+        // 确保输出目录存在
+        const dirname = path.dirname(output_path);
+        if (!fs.existsSync(dirname)) {
+          console.error(`创建目录: ${dirname}`);
+          fs.mkdirSync(dirname, { recursive: true });
+        }
+      } catch (fsError) {
+        throw ErrorHandler.handleFileSystemError(fsError, '创建目录');
       }
 
       // 下载图像
       console.error(`开始下载图像: ${url}`);
-      const response = await axios.get(url, { responseType: 'arraybuffer' });
+      let response;
+      try {
+        response = await axios.get(url, { responseType: 'arraybuffer' });
+      } catch (downloadError) {
+        throw ErrorHandler.handleApiError(downloadError);
+      }
       
       // 写入文件
-      console.error(`写入文件: ${output_path}`);
-      fs.writeFileSync(output_path, Buffer.from(response.data, 'binary'));
+      try {
+        console.error(`写入文件: ${output_path}`);
+        fs.writeFileSync(output_path, Buffer.from(response.data, 'binary'));
+      } catch (writeError) {
+        throw ErrorHandler.handleFileSystemError(writeError, '写入文件');
+      }
       
       // 验证文件是否写入成功
-      if (fs.existsSync(output_path)) {
-        const fileSize = fs.statSync(output_path).size;
-        console.error(`文件成功写入: ${output_path}, 大小: ${fileSize} 字节`);
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                message: `图像已下载到 ${output_path}`,
-                size: fileSize,
-                path: output_path
-              }, null, 2),
-            },
-          ],
-        };
-      } else {
-        console.error(`文件写入失败: ${output_path}`);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `文件写入失败: ${output_path}`,
-            },
-          ],
-          isError: true,
-        };
+      try {
+        if (fs.existsSync(output_path)) {
+          const fileSize = fs.statSync(output_path).size;
+          console.error(`文件成功写入: ${output_path}, 大小: ${fileSize} 字节`);
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  message: `图像已下载到 ${output_path}`,
+                  size: fileSize,
+                  path: output_path
+                }, null, 2),
+              },
+            ],
+          };
+        } else {
+          throw new PollinationsError(
+            `文件写入失败: ${output_path}`,
+            PollinationsErrorType.FILE_SYSTEM_ERROR
+          );
+        }
+      } catch (verifyError) {
+        if (verifyError instanceof PollinationsError) {
+          throw verifyError;
+        } else {
+          throw ErrorHandler.handleFileSystemError(verifyError, '验证文件');
+        }
       }
     } catch (error) {
+      // 处理所有错误
+      let pollinationsError: PollinationsError;
+      
+      if (error instanceof PollinationsError) {
+        pollinationsError = error;
+      } else {
+        pollinationsError = ErrorHandler.handleApiError(error);
+      }
+      
       return {
         content: [
           {
             type: 'text',
-            text: `下载图像时出错: ${error instanceof Error ? error.message : String(error)}`,
+            text: pollinationsError.toUserFriendlyMessage(),
           },
         ],
         isError: true,
@@ -367,6 +464,65 @@ class PollinationsServer {
       args !== null &&
       typeof args.url === 'string' &&
       (args.output_path === undefined || typeof args.output_path === 'string')
+    );
+  }
+
+  // 处理生成文本请求
+  private async handleGenerateText(args: any) {
+    if (!this.isValidGenerateTextArgs(args)) {
+      throw new McpError(ErrorCode.InvalidParams, '无效的文本生成参数');
+    }
+
+    const { prompt, model = 'openai', seed, system, json = false, private: isPrivate = false } = args;
+
+    try {
+      const result = await this.textAudioAPI.generateTextGet(prompt, {
+        model,
+        seed,
+        json,
+        system,
+        private: isPrivate
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `生成文本时出错: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  // 验证生成文本参数
+  private isValidGenerateTextArgs(args: any): args is {
+    prompt: string;
+    model?: string;
+    seed?: number;
+    system?: string;
+    json?: boolean;
+    private?: boolean;
+  } {
+    return (
+      typeof args === 'object' &&
+      args !== null &&
+      typeof args.prompt === 'string' &&
+      (args.model === undefined || typeof args.model === 'string') &&
+      (args.seed === undefined || typeof args.seed === 'number') &&
+      (args.system === undefined || typeof args.system === 'string') &&
+      (args.json === undefined || typeof args.json === 'boolean') &&
+      (args.private === undefined || typeof args.private === 'boolean')
     );
   }
 
