@@ -6,7 +6,7 @@
 
 - 支持通过MCP协议与Pollinations.ai服务交互
 - 提供两个主要工具：
-  - `generate_image`: 使用Pollinations.ai生成图像并返回URL
+  - `generate_image`: 使用Pollinations.ai生成图像并返回URL（默认无水印）
   - `download_image`: 下载生成的图像到本地文件
 - 基于TypeScript实现，支持类型安全
 - 使用stdio传输机制，便于与AI模型集成
@@ -42,32 +42,62 @@ npm start
 
 服务器将通过标准输入/输出(stdio)启动，等待MCP客户端连接。
 
-### 在Cursor中使用
+### 在Cursor中使用（当前可能无法正常工作）
 
-[Cursor](https://cursor.com)是一个支持MCP协议的代码编辑器，可以直接使用本服务器提供的图像生成功能。设置步骤如下：
+**注意：** 目前在Cursor中配置此服务器可能不会成功。如果您需要使用此功能，建议使用Cline（见下文）。
 
-#### 方法一：全局配置
+### 在Cline中使用（推荐）
 
-1. 在Cursor中，依次打开`Cursor设置` > `功能` > `MCP`
-2. 点击`+ 添加新的MCP服务器`按钮
-3. 设置以下参数：
-   - **类型**：选择`stdio`
-   - **名称**：输入`Pollinations图像生成`
-   - **命令**：输入您的完整命令路径，例如`node /path/to/pollinations-mcp/dist/index.js`
+[Cline](https://cline.app)是一个支持MCP协议的AI终端，可以成功使用本服务器提供的图像生成功能。设置步骤如下：
 
-#### 方法二：项目特定配置
+1. 安装并启动Cline
+2. 打开Cline的设置文件，通常位于：
+   - Windows: `%APPDATA%\Cline\config.json`
+   - Mac: `~/Library/Application Support/Cline/config.json`
+   - Linux: `~/.config/Cline/config.json`
 
-1. 在项目根目录创建`.cursor`文件夹（如果不存在）
-2. 将本项目中的`cursor/mcp.json`文件复制到`.cursor/mcp.json`
-3. 根据您的环境修改文件路径
+3. 在配置文件中找到或添加`mcpServers`部分，然后添加以下配置：
 
-配置完成后，您可以在Cursor的Composer界面中的Agent模式下使用这些工具。简单地告诉Agent使用Pollinations生成图像，例如：
+```json
+"mcpServers": {
+  "pollinations-mcp": {
+    "command": "node",
+    "args": [
+      "完整路径/到您的/pollinations-mcp/dist/index.js"
+    ],
+    "disabled": false,
+    "autoApprove": [
+      "download_image",
+      "generate_image"
+    ]
+  }
+}
+```
+
+例如，Windows系统上的完整配置可能如下：
+
+```json
+"mcpServers": {
+  "pollinations-mcp": {
+    "command": "node",
+    "args": [
+      "C:\\Users\\用户名\\路径\\到\\pollinations-mcp\\dist\\index.js"
+    ],
+    "disabled": false,
+    "autoApprove": [
+      "download_image",
+      "generate_image"
+    ]
+  }
+}
+```
+
+4. 保存配置文件并重启Cline
+5. 现在您可以在Cline中使用Pollinations图像生成功能了，例如：
 
 ```
 使用Pollinations生成一张描绘日落的图像
 ```
-
-Agent将自动调用相应的工具，并请求您的确认后执行。
 
 ### 与AI模型集成
 
@@ -85,6 +115,7 @@ Agent将自动调用相应的工具，并请求您的确认后执行。
 - `height` (可选): 图像高度（像素），默认为1024
 - `seed` (可选): 随机种子值（用于生成一致的图像）
 - `model` (可选): 要使用的模型，默认为'flux'
+- `nologo` (可选): 设置为true可去除水印，默认为true
 
 #### download_image
 
