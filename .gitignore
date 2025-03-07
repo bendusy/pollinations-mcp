@@ -27,6 +27,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+cursor/
 
 # 日志文件
 logs/
